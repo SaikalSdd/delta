@@ -1,15 +1,15 @@
-#include "irgen.h"
 #include <llvm/Support/Path.h>
+#include "llvm.h"
 #include "../ast/module.h"
 #include "../support/utility.h"
 
 using namespace delta;
 
-llvm::Value* IRGenerator::codegenVarExpr(const VarExpr& expr) {
+llvm::Value* LLVMGenerator::codegenVarExpr(const VarExpr& expr) {
     return getValue(expr.getDecl());
 }
 
-llvm::Value* IRGenerator::codegenStringLiteralExpr(const StringLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenStringLiteralExpr(const StringLiteralExpr& expr) {
     ASSERT(builder.GetInsertBlock(), "CreateGlobalStringPtr requires block to insert into");
     auto* stringPtr = builder.CreateGlobalStringPtr(expr.getValue());
     auto* size = llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), expr.getValue().size());
@@ -30,11 +30,11 @@ llvm::Value* IRGenerator::codegenStringLiteralExpr(const StringLiteralExpr& expr
     return alloca;
 }
 
-llvm::Value* IRGenerator::codegenCharacterLiteralExpr(const CharacterLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenCharacterLiteralExpr(const CharacterLiteralExpr& expr) {
     return llvm::ConstantInt::get(getLLVMType(expr.getType()), expr.getValue());
 }
 
-llvm::Value* IRGenerator::codegenIntLiteralExpr(const IntLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenIntLiteralExpr(const IntLiteralExpr& expr) {
     auto type = getLLVMType(expr.getType());
     // Integer literals may be typed as floating-point when used in a context
     // that requires a floating-point value. It might make sense to combine
@@ -45,15 +45,15 @@ llvm::Value* IRGenerator::codegenIntLiteralExpr(const IntLiteralExpr& expr) {
     return llvm::ConstantInt::get(type, expr.getValue().extOrTrunc(type->getIntegerBitWidth()));
 }
 
-llvm::Value* IRGenerator::codegenFloatLiteralExpr(const FloatLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenFloatLiteralExpr(const FloatLiteralExpr& expr) {
     return llvm::ConstantFP::get(getLLVMType(expr.getType()), expr.getValue());
 }
 
-llvm::Value* IRGenerator::codegenBoolLiteralExpr(const BoolLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenBoolLiteralExpr(const BoolLiteralExpr& expr) {
     return expr.getValue() ? llvm::ConstantInt::getTrue(ctx) : llvm::ConstantInt::getFalse(ctx);
 }
 
-llvm::Value* IRGenerator::codegenNullLiteralExpr(const NullLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenNullLiteralExpr(const NullLiteralExpr& expr) {
     if (expr.getType().isPointerTypeInLLVM()) {
         return llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(getLLVMType(expr.getType())));
     } else {
@@ -61,7 +61,7 @@ llvm::Value* IRGenerator::codegenNullLiteralExpr(const NullLiteralExpr& expr) {
     }
 }
 
-llvm::Value* IRGenerator::codegenOptionalConstruction(Type wrappedType, llvm::Value* arg) {
+llvm::Value* LLVMGenerator::codegenOptionalConstruction(Type wrappedType, llvm::Value* arg) {
     auto* decl = Module::getStdlibModule()->getSymbolTable().findOne("Optional");
     auto typeTemplate = llvm::cast<TypeTemplate>(decl);
     auto typeDecl = typeTemplate->instantiate(wrappedType);
@@ -83,11 +83,11 @@ llvm::Value* IRGenerator::codegenOptionalConstruction(Type wrappedType, llvm::Va
     return alloca;
 }
 
-llvm::Value* IRGenerator::codegenUndefinedLiteralExpr(const UndefinedLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenUndefinedLiteralExpr(const UndefinedLiteralExpr& expr) {
     return llvm::UndefValue::get(getLLVMType(expr.getType()));
 }
 
-llvm::Value* IRGenerator::codegenArrayLiteralExpr(const ArrayLiteralExpr& expr) {
+llvm::Value* LLVMGenerator::codegenArrayLiteralExpr(const ArrayLiteralExpr& expr) {
     auto* arrayType = llvm::ArrayType::get(getLLVMType(expr.getElements()[0]->getType()), expr.getElements().size());
     llvm::Value* array = llvm::UndefValue::get(arrayType);
     unsigned index = 0;
@@ -98,7 +98,7 @@ llvm::Value* IRGenerator::codegenArrayLiteralExpr(const ArrayLiteralExpr& expr) 
     return array;
 }
 
-llvm::Value* IRGenerator::codegenTupleExpr(const TupleExpr& expr) {
+llvm::Value* LLVMGenerator::codegenTupleExpr(const TupleExpr& expr) {
     llvm::Value* tuple = llvm::UndefValue::get(getLLVMType(expr.getType()));
     unsigned index = 0;
     for (auto& element : expr.getElements()) {
@@ -107,12 +107,12 @@ llvm::Value* IRGenerator::codegenTupleExpr(const TupleExpr& expr) {
     return tuple;
 }
 
-llvm::Value* IRGenerator::codegenImplicitNullComparison(llvm::Value* operand) {
+llvm::Value* LLVMGenerator::codegenImplicitNullComparison(llvm::Value* operand) {
     auto* pointerType = llvm::cast<llvm::PointerType>(operand->getType());
     return builder.CreateICmpNE(operand, llvm::ConstantPointerNull::get(pointerType));
 }
 
-llvm::Value* IRGenerator::codegenNot(const UnaryExpr& expr) {
+llvm::Value* LLVMGenerator::codegenNot(const UnaryExpr& expr) {
     auto* operand = codegenExpr(expr.getOperand());
     if (operand->getType()->isPointerTy()) {
         operand = codegenImplicitNullComparison(operand);
@@ -120,7 +120,7 @@ llvm::Value* IRGenerator::codegenNot(const UnaryExpr& expr) {
     return builder.CreateNot(operand);
 }
 
-llvm::Value* IRGenerator::codegenUnaryExpr(const UnaryExpr& expr) {
+llvm::Value* LLVMGenerator::codegenUnaryExpr(const UnaryExpr& expr) {
     switch (expr.getOperator()) {
         case Token::Plus:
             return codegenExpr(expr.getOperand());
@@ -152,7 +152,7 @@ llvm::Value* IRGenerator::codegenUnaryExpr(const UnaryExpr& expr) {
 }
 
 // TODO: Lower increment and decrement statements to compound assignments so this isn't needed.
-llvm::Value* IRGenerator::codegenConstantIncrement(const UnaryExpr& expr, int increment) {
+llvm::Value* LLVMGenerator::codegenConstantIncrement(const UnaryExpr& expr, int increment) {
     auto operandType = expr.getOperand().getType();
     auto* ptr = codegenLvalueExpr(expr.getOperand());
     if (operandType.isPointerType() && llvm::isa<llvm::AllocaInst>(ptr)) {
@@ -175,7 +175,7 @@ llvm::Value* IRGenerator::codegenConstantIncrement(const UnaryExpr& expr, int in
     return nullptr;
 }
 
-llvm::Value* IRGenerator::codegenLogicalAnd(const Expr& left, const Expr& right) {
+llvm::Value* LLVMGenerator::codegenLogicalAnd(const Expr& left, const Expr& right) {
     auto* rhsBlock = llvm::BasicBlock::Create(ctx, "and.rhs", builder.GetInsertBlock()->getParent());
     auto* endBlock = llvm::BasicBlock::Create(ctx, "and.end", builder.GetInsertBlock()->getParent());
 
@@ -195,7 +195,7 @@ llvm::Value* IRGenerator::codegenLogicalAnd(const Expr& left, const Expr& right)
     return phi;
 }
 
-llvm::Value* IRGenerator::codegenLogicalOr(const Expr& left, const Expr& right) {
+llvm::Value* LLVMGenerator::codegenLogicalOr(const Expr& left, const Expr& right) {
     auto* rhsBlock = llvm::BasicBlock::Create(ctx, "or.rhs", builder.GetInsertBlock()->getParent());
     auto* endBlock = llvm::BasicBlock::Create(ctx, "or.end", builder.GetInsertBlock()->getParent());
 
@@ -215,7 +215,7 @@ llvm::Value* IRGenerator::codegenLogicalOr(const Expr& left, const Expr& right) 
     return phi;
 }
 
-llvm::Value* IRGenerator::codegenBinaryOp(Token::Kind op, llvm::Value* lhs, llvm::Value* rhs, Type lhsType) {
+llvm::Value* LLVMGenerator::codegenBinaryOp(Token::Kind op, llvm::Value* lhs, llvm::Value* rhs, Type lhsType) {
     if (lhs->getType()->isPointerTy() && lhs->getType()->getPointerElementType() == rhs->getType()) {
         lhs = createLoad(lhs);
         lhsType = lhsType.getPointee();
@@ -299,7 +299,7 @@ llvm::Value* IRGenerator::codegenBinaryOp(Token::Kind op, llvm::Value* lhs, llvm
     }
 }
 
-llvm::Value* IRGenerator::codegenShortCircuitBinaryOp(BinaryOperator op, const Expr& lhs, const Expr& rhs) {
+llvm::Value* LLVMGenerator::codegenShortCircuitBinaryOp(BinaryOperator op, const Expr& lhs, const Expr& rhs) {
     switch (op) {
         case Token::AndAnd:
             return codegenLogicalAnd(lhs, rhs);
@@ -310,7 +310,7 @@ llvm::Value* IRGenerator::codegenShortCircuitBinaryOp(BinaryOperator op, const E
     }
 }
 
-llvm::Value* IRGenerator::codegenBinaryExpr(const BinaryExpr& expr) {
+llvm::Value* LLVMGenerator::codegenBinaryExpr(const BinaryExpr& expr) {
     if (expr.isAssignment()) {
         codegenAssignment(expr);
         return nullptr;
@@ -331,7 +331,7 @@ llvm::Value* IRGenerator::codegenBinaryExpr(const BinaryExpr& expr) {
     }
 }
 
-void IRGenerator::codegenAssignment(const BinaryExpr& expr) {
+void LLVMGenerator::codegenAssignment(const BinaryExpr& expr) {
     if (expr.getRHS().isUndefinedLiteralExpr()) return;
 
     llvm::Value* lhsLvalue = codegenAssignmentLHS(expr.getLHS());
@@ -344,7 +344,7 @@ static bool isBuiltinArrayToArrayRefConversion(Type sourceType, llvm::Type* targ
            targetType->getStructName().startswith("ArrayRef");
 }
 
-llvm::Value* IRGenerator::codegenExprForPassing(const Expr& expr, llvm::Type* targetType) {
+llvm::Value* LLVMGenerator::codegenExprForPassing(const Expr& expr, llvm::Type* targetType) {
     if (!targetType) {
         return codegenExpr(expr);
     }
@@ -387,7 +387,7 @@ llvm::Value* IRGenerator::codegenExprForPassing(const Expr& expr, llvm::Type* ta
     }
 }
 
-llvm::Value* IRGenerator::codegenBuiltinConversion(const Expr& expr, Type type) {
+llvm::Value* LLVMGenerator::codegenBuiltinConversion(const Expr& expr, Type type) {
     auto value = codegenExpr(expr);
 
     if (expr.getType().isUnsignedInteger() && type.isInteger()) {
@@ -413,7 +413,7 @@ llvm::Value* IRGenerator::codegenBuiltinConversion(const Expr& expr, Type type) 
     exit(1);
 }
 
-void IRGenerator::codegenAssert(llvm::Value* condition, SourceLocation location, llvm::StringRef message) {
+void LLVMGenerator::codegenAssert(llvm::Value* condition, SourceLocation location, llvm::StringRef message) {
     condition = builder.CreateIsNull(condition, "assert.condition");
     auto* function = builder.GetInsertBlock()->getParent();
     auto* failBlock = llvm::BasicBlock::Create(ctx, "assert.fail", function);
@@ -428,7 +428,7 @@ void IRGenerator::codegenAssert(llvm::Value* condition, SourceLocation location,
     builder.SetInsertPoint(successBlock);
 }
 
-llvm::Value* IRGenerator::codegenEnumCase(const EnumCase& enumCase, llvm::ArrayRef<NamedValue> associatedValueElements) {
+llvm::Value* LLVMGenerator::codegenEnumCase(const EnumCase& enumCase, llvm::ArrayRef<NamedValue> associatedValueElements) {
     auto enumDecl = enumCase.getEnumDecl();
     auto tag = codegenExpr(*enumCase.getValue());
     if (!enumDecl->hasAssociatedValues()) return tag;
@@ -452,7 +452,7 @@ llvm::Value* IRGenerator::codegenEnumCase(const EnumCase& enumCase, llvm::ArrayR
     return enumValue;
 }
 
-llvm::Value* IRGenerator::codegenCallExpr(const CallExpr& expr, llvm::AllocaInst* thisAllocaForInit) {
+llvm::Value* LLVMGenerator::codegenCallExpr(const CallExpr& expr, llvm::AllocaInst* thisAllocaForInit) {
     if (expr.isBuiltinConversion()) {
         return codegenBuiltinConversion(*expr.getArgs().front().getValue(), expr.getType());
     }
@@ -543,7 +543,7 @@ llvm::Value* IRGenerator::codegenCallExpr(const CallExpr& expr, llvm::AllocaInst
     }
 }
 
-llvm::Value* IRGenerator::codegenBuiltinCast(const CallExpr& expr) {
+llvm::Value* LLVMGenerator::codegenBuiltinCast(const CallExpr& expr) {
     auto* value = codegenExpr(*expr.getArgs().front().getValue());
     auto* type = getLLVMType(expr.getGenericArgs().front());
 
@@ -554,17 +554,17 @@ llvm::Value* IRGenerator::codegenBuiltinCast(const CallExpr& expr) {
     return builder.CreateBitOrPointerCast(value, type);
 }
 
-llvm::Value* IRGenerator::codegenSizeofExpr(const SizeofExpr& expr) {
+llvm::Value* LLVMGenerator::codegenSizeofExpr(const SizeofExpr& expr) {
     return llvm::ConstantExpr::getSizeOf(getLLVMType(expr.getType()));
 }
 
-llvm::Value* IRGenerator::codegenAddressofExpr(const AddressofExpr& expr) {
+llvm::Value* LLVMGenerator::codegenAddressofExpr(const AddressofExpr& expr) {
     llvm::Value* value = codegenExpr(expr.getOperand());
     llvm::Type* uintptr = getLLVMType(Type::getUIntPtr());
     return builder.CreatePtrToInt(value, uintptr, "address");
 }
 
-llvm::Value* IRGenerator::codegenMemberAccess(llvm::Value* baseValue, const FieldDecl* field) {
+llvm::Value* LLVMGenerator::codegenMemberAccess(llvm::Value* baseValue, const FieldDecl* field) {
     auto baseTypeDecl = field->getParentDecl();
     auto baseType = baseValue->getType();
 
@@ -590,7 +590,7 @@ llvm::Value* IRGenerator::codegenMemberAccess(llvm::Value* baseValue, const Fiel
     }
 }
 
-llvm::Value* IRGenerator::getArrayLength(const Expr& object, Type objectType) {
+llvm::Value* LLVMGenerator::getArrayLength(const Expr& object, Type objectType) {
     if (objectType.isArrayWithRuntimeSize()) {
         return builder.CreateExtractValue(codegenExpr(object), 1, "size");
     } else {
@@ -598,7 +598,7 @@ llvm::Value* IRGenerator::getArrayLength(const Expr& object, Type objectType) {
     }
 }
 
-llvm::Value* IRGenerator::getArrayIterator(const Expr& object, Type objectType) {
+llvm::Value* LLVMGenerator::getArrayIterator(const Expr& object, Type objectType) {
     auto* type = getLLVMType(BasicType::get("ArrayIterator", objectType.getElementType()));
     auto* value = codegenExprAsPointer(object);
     auto* elementPtr = builder.CreateConstInBoundsGEP2_32(nullptr, value, 0, 0);
@@ -608,7 +608,7 @@ llvm::Value* IRGenerator::getArrayIterator(const Expr& object, Type objectType) 
     return builder.CreateInsertValue(iterator, end, 1);
 }
 
-llvm::Value* IRGenerator::codegenMemberExpr(const MemberExpr& expr) {
+llvm::Value* LLVMGenerator::codegenMemberExpr(const MemberExpr& expr) {
     if (auto* enumCase = llvm::dyn_cast_or_null<EnumCase>(expr.getDecl())) {
         return codegenEnumCase(*enumCase, {});
     }
@@ -620,7 +620,7 @@ llvm::Value* IRGenerator::codegenMemberExpr(const MemberExpr& expr) {
     return codegenMemberAccess(codegenLvalueExpr(*expr.getBaseExpr()), llvm::cast<FieldDecl>(expr.getDecl()));
 }
 
-llvm::Value* IRGenerator::codegenTupleElementAccess(const MemberExpr& expr) {
+llvm::Value* LLVMGenerator::codegenTupleElementAccess(const MemberExpr& expr) {
     unsigned index = 0;
     for (auto& element : expr.getBaseExpr()->getType().removePointer().getTupleElements()) {
         if (element.name == expr.getMemberName()) break;
@@ -639,7 +639,7 @@ llvm::Value* IRGenerator::codegenTupleElementAccess(const MemberExpr& expr) {
     }
 }
 
-llvm::Value* IRGenerator::codegenIndexExpr(const IndexExpr& expr) {
+llvm::Value* LLVMGenerator::codegenIndexExpr(const IndexExpr& expr) {
     if (!expr.getBase()->getType().removePointer().isArrayType()) {
         return codegenCallExpr(expr);
     }
@@ -668,7 +668,7 @@ llvm::Value* IRGenerator::codegenIndexExpr(const IndexExpr& expr) {
     return builder.CreateGEP(value, {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0), codegenExpr(*expr.getIndex())});
 }
 
-llvm::Value* IRGenerator::codegenUnwrapExpr(const UnwrapExpr& expr) {
+llvm::Value* LLVMGenerator::codegenUnwrapExpr(const UnwrapExpr& expr) {
     auto* value = codegenExpr(expr.getOperand());
     llvm::StringRef message = "Unwrap failed";
 
@@ -681,7 +681,7 @@ llvm::Value* IRGenerator::codegenUnwrapExpr(const UnwrapExpr& expr) {
     }
 }
 
-llvm::Value* IRGenerator::codegenLambdaExpr(const LambdaExpr& expr) {
+llvm::Value* LLVMGenerator::codegenLambdaExpr(const LambdaExpr& expr) {
     auto functionDecl = expr.getFunctionDecl();
 
     auto insertBlockBackup = builder.GetInsertBlock();
@@ -699,7 +699,7 @@ llvm::Value* IRGenerator::codegenLambdaExpr(const LambdaExpr& expr) {
     return codegenVarExpr(varExpr);
 }
 
-llvm::Value* IRGenerator::codegenIfExpr(const IfExpr& expr) {
+llvm::Value* LLVMGenerator::codegenIfExpr(const IfExpr& expr) {
     auto* condition = codegenExpr(*expr.getCondition());
     if (condition->getType()->isPointerTy()) {
         condition = codegenImplicitNullComparison(condition);
@@ -729,7 +729,7 @@ llvm::Value* IRGenerator::codegenIfExpr(const IfExpr& expr) {
     return phi;
 }
 
-llvm::Value* IRGenerator::codegenImplicitCastExpr(const ImplicitCastExpr& expr) {
+llvm::Value* LLVMGenerator::codegenImplicitCastExpr(const ImplicitCastExpr& expr) {
     if (expr.getType().isOptionalType() &&
         !(expr.getType().getWrappedType().isPointerType() || expr.getType().getWrappedType().isFunctionType()) &&
         expr.getOperand()->getType() == expr.getType().getWrappedType()) {
@@ -744,7 +744,7 @@ llvm::Value* IRGenerator::codegenImplicitCastExpr(const ImplicitCastExpr& expr) 
     return codegenExprWithoutAutoCast(*expr.getOperand());
 }
 
-llvm::Value* IRGenerator::codegenExprWithoutAutoCast(const Expr& expr) {
+llvm::Value* LLVMGenerator::codegenExprWithoutAutoCast(const Expr& expr) {
     switch (expr.getKind()) {
         case ExprKind::VarExpr:
             return codegenVarExpr(llvm::cast<VarExpr>(expr));
@@ -792,7 +792,7 @@ llvm::Value* IRGenerator::codegenExprWithoutAutoCast(const Expr& expr) {
     llvm_unreachable("all cases handled");
 }
 
-llvm::Value* IRGenerator::codegenExpr(const Expr& expr) {
+llvm::Value* LLVMGenerator::codegenExpr(const Expr& expr) {
     auto* value = codegenLvalueExpr(expr);
 
     if (value) {
@@ -812,11 +812,11 @@ llvm::Value* IRGenerator::codegenExpr(const Expr& expr) {
     return value;
 }
 
-llvm::Value* IRGenerator::codegenLvalueExpr(const Expr& expr) {
+llvm::Value* LLVMGenerator::codegenLvalueExpr(const Expr& expr) {
     return codegenAutoCast(codegenExprWithoutAutoCast(expr), expr);
 }
 
-llvm::Value* IRGenerator::codegenExprAsPointer(const Expr& expr) {
+llvm::Value* LLVMGenerator::codegenExprAsPointer(const Expr& expr) {
     auto* value = codegenLvalueExpr(expr);
     if (!value->getType()->isPointerTy()) {
         value = createTempAlloca(value);
@@ -824,7 +824,7 @@ llvm::Value* IRGenerator::codegenExprAsPointer(const Expr& expr) {
     return value;
 }
 
-llvm::Value* IRGenerator::codegenExprOrEnumTag(const Expr& expr, llvm::Value** enumValue) {
+llvm::Value* LLVMGenerator::codegenExprOrEnumTag(const Expr& expr, llvm::Value** enumValue) {
     if (auto* memberExpr = llvm::dyn_cast<MemberExpr>(&expr)) {
         if (auto* enumCase = llvm::dyn_cast_or_null<EnumCase>(memberExpr->getDecl())) {
             return codegenExpr(*enumCase->getValue());
@@ -842,7 +842,7 @@ llvm::Value* IRGenerator::codegenExprOrEnumTag(const Expr& expr, llvm::Value** e
     return codegenExpr(expr);
 }
 
-llvm::Value* IRGenerator::codegenAutoCast(llvm::Value* value, const Expr& expr) {
+llvm::Value* LLVMGenerator::codegenAutoCast(llvm::Value* value, const Expr& expr) {
     // Handle optionals that have been implicitly unwrapped due to data-flow analysis.
     if (expr.hasAssignableType() && expr.getAssignableType().isOptionalType() &&
         !expr.getAssignableType().getWrappedType().isPointerType() && expr.getType() == expr.getAssignableType().getWrappedType()) {
