@@ -3,7 +3,7 @@
 #include <llvm/ADT/StringSwitch.h>
 #include <llvm/IR/Verifier.h>
 #pragma warning(pop)
-#include "../ast/module.h"
+#include "../ir/ir.h"
 
 using namespace delta;
 
@@ -313,14 +313,16 @@ llvm::Value* LLVMGenerator::getFunctionForCall(const CallExpr& call) {
     }
 }
 
-llvm::Module& LLVMGenerator::codegenModule(const Module& sourceModule) {
+llvm::Module& LLVMGenerator::codegenModule(const IRModule& sourceModule) {
     ASSERT(!module);
-    module = new llvm::Module(sourceModule.getName(), ctx);
+    module = new llvm::Module(sourceModule.name, ctx);
 
-    for (const auto& sourceFile : sourceModule.getSourceFiles()) {
-        for (const auto& decl : sourceFile.getTopLevelDecls()) {
-            codegenDecl(*decl);
-        }
+    for (auto& globalVariable : sourceModule.globalVariables) {
+        codegenGlobalVariable(globalVariable);
+    }
+
+    for (auto& function : sourceModule.functions) {
+        codegenFunction(function);
     }
 
     for (size_t i = 0; i < functionInstantiations.size(); ++i) {

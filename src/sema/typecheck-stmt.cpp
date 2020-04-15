@@ -178,6 +178,20 @@ void Typechecker::typecheckCompoundStmt(CompoundStmt& compoundStmt) {
     }
 }
 
+// generateAssignmentDeltaIR(std::vector<BasicBlock>& blocks) {
+//    blocks.push(destructorCall);
+//    blocks.push(assignment);
+// }
+
+// call1(call2());
+//
+//    |
+//    v
+//
+// %1 = call2();
+// %2 = call(%1);
+// deinit(%1);
+
 void Typechecker::typecheckStmt(Stmt*& stmt) {
     try {
         switch (stmt->getKind()) {

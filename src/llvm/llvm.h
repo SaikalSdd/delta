@@ -7,14 +7,11 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
 #pragma warning(pop)
-#include "../ast/decl.h"
-#include "../ast/expr.h"
-#include "../ast/stmt.h"
-#include "../sema/typecheck.h"
+#include "../ir/ir.h"
 
 namespace delta {
 
-class Module;
+class IRModule;
 struct Type;
 class Typechecker;
 class LLVMGenerator;
@@ -39,7 +36,9 @@ struct LLVMGenScope {
 class LLVMGenerator {
 public:
     LLVMGenerator();
-    llvm::Module& codegenModule(const Module& sourceModule);
+    llvm::Module& codegenModule(const IRModule& sourceModule);
+    void codegenGlobalVariable(const IRGlobalVariable& globalVariable);
+    void codegenFunction(const IRFunction& function);
     llvm::LLVMContext& getLLVMContext() { return ctx; }
     std::vector<llvm::Module*> getGeneratedModules() { return std::move(generatedModules); }
 
@@ -115,7 +114,6 @@ private:
     void codegenCompoundStmt(const CompoundStmt& stmt);
     void codegenStmt(const Stmt& stmt);
 
-    void codegenDecl(const Decl& decl);
     void codegenFunctionDecl(const FunctionDecl& decl);
     llvm::StructType* codegenTypeDecl(const TypeDecl& decl);
     llvm::Value* codegenVarDecl(const VarDecl& decl);

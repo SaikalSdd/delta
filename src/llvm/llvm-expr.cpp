@@ -17,7 +17,7 @@ llvm::Value* LLVMGenerator::codegenStringLiteralExpr(const StringLiteralExpr& ex
     auto* alloca = createEntryBlockAlloca(type, nullptr, "__str");
     llvm::Function* stringConstructor = nullptr;
 
-    for (auto* decl : Module::getStdlibModule()->getSymbolTable().find("string.init")) {
+    for (auto* decl : IRModule::getStdlibModule()->getSymbolTable().find("string.init")) {
         auto params = llvm::cast<ConstructorDecl>(decl)->getParams();
         if (params.size() == 2 && params[0].getType().isPointerType() && params[1].getType().isInt()) {
             stringConstructor = getFunctionProto(*llvm::cast<ConstructorDecl>(decl));
@@ -62,7 +62,7 @@ llvm::Value* LLVMGenerator::codegenNullLiteralExpr(const NullLiteralExpr& expr) 
 }
 
 llvm::Value* LLVMGenerator::codegenOptionalConstruction(Type wrappedType, llvm::Value* arg) {
-    auto* decl = Module::getStdlibModule()->getSymbolTable().findOne("Optional");
+    auto* decl = IRModule::getStdlibModule()->getSymbolTable().findOne("Optional");
     auto typeTemplate = llvm::cast<TypeTemplate>(decl);
     auto typeDecl = typeTemplate->instantiate(wrappedType);
     llvm::Function* optionalConstructor = nullptr;
@@ -362,7 +362,7 @@ llvm::Value* LLVMGenerator::codegenExprForPassing(const Expr& expr, llvm::Type* 
 
     // Handle implicit conversions to type 'T[*]'.
     if (expr.getType().removePointer().isArrayWithConstantSize() && targetType->isPointerTy() &&
-        !targetType->getPointerElementType()->isArrayTy()) {
+        !targetType->getPointerElementType().isArrayType()) {
         return builder.CreateBitOrPointerCast(codegenLvalueExpr(expr), targetType);
     }
 
@@ -418,7 +418,7 @@ void LLVMGenerator::codegenAssert(llvm::Value* condition, SourceLocation locatio
     auto* function = builder.GetInsertBlock()->getParent();
     auto* failBlock = llvm::BasicBlock::Create(ctx, "assert.fail", function);
     auto* successBlock = llvm::BasicBlock::Create(ctx, "assert.success", function);
-    auto* assertFail = getFunctionProto(*llvm::cast<FunctionDecl>(Module::getStdlibModule()->getSymbolTable().findOne("assertFail")));
+    auto* assertFail = getFunctionProto(*llvm::cast<FunctionDecl>(IRModule::getStdlibModule()->getSymbolTable().findOne("assertFail")));
     builder.CreateCondBr(condition, failBlock, successBlock);
     builder.SetInsertPoint(failBlock);
     auto messageAndLocation = llvm::join_items("", message, " at ", llvm::sys::path::filename(location.file), ":",

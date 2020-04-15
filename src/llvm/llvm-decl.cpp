@@ -81,7 +81,7 @@ void LLVMGenerator::codegenFunctionBody(const FunctionDecl& decl, llvm::Function
     }
 }
 
-void LLVMGenerator::codegenFunctionDecl(const FunctionDecl& decl) {
+void IRGenerator::codegenFunction(const IRFunction& function) {
     llvm::Function* function = getFunctionProto(decl);
 
     if (!decl.isExtern() && function->empty()) {
@@ -181,41 +181,26 @@ llvm::Value* LLVMGenerator::codegenVarDecl(const VarDecl& decl) {
     return value;
 }
 
-void LLVMGenerator::codegenDecl(const Decl& decl) {
-    llvm::SaveAndRestore setCurrentDecl(currentDecl, &decl);
-
-    switch (decl.getKind()) {
-        case DeclKind::ParamDecl:
-            llvm_unreachable("handled via FunctionDecl");
-        case DeclKind::FunctionDecl:
-        case DeclKind::MethodDecl:
-            codegenFunctionDecl(llvm::cast<FunctionDecl>(decl));
-            break;
-        case DeclKind::GenericParamDecl:
-            llvm_unreachable("cannot codegen generic parameter declaration");
-        case DeclKind::ConstructorDecl:
-            codegenFunctionDecl(llvm::cast<ConstructorDecl>(decl));
-            break;
-        case DeclKind::DestructorDecl:
-            codegenFunctionDecl(llvm::cast<DestructorDecl>(decl));
-            break;
-        case DeclKind::FunctionTemplate:
-            break;
-        case DeclKind::TypeDecl:
-            codegenTypeDecl(llvm::cast<TypeDecl>(decl));
-            break;
-        case DeclKind::TypeTemplate:
-            break;
-        case DeclKind::EnumDecl:
-            break;
-        case DeclKind::EnumCase:
-            break;
-        case DeclKind::VarDecl:
-            codegenVarDecl(llvm::cast<VarDecl>(decl));
-            break;
-        case DeclKind::FieldDecl:
-            llvm_unreachable("handled via TypeDecl");
-        case DeclKind::ImportDecl:
-            break;
+void LLVMGenerator::codegenGlobalVariable(const IRGlobalVariable& globalVariable) {
+    //    if (decl.getName() == "this") {
+    //        return getThis();
+    //    }
+    //
+    //    if (auto* value = getValueOrNull(&decl)) {
+    //        return value;
+    //    }
+    //
+    //    ASSERT(decl.getInitializer());
+    //    llvm::Value* value = codegenExpr(*decl.getInitializer());
+    //
+    if (globalVariable.getType().isMutable()) {
+        auto value = globalVariable.value;
+        auto linkage = value ? llvm::GlobalValue::PrivateLinkage : llvm::GlobalValue::ExternalLinkage;
+        auto initializer = value ? llvm::cast<llvm::Constant>(value) : nullptr;
+        new llvm::GlobalVariable(*module, getLLVMType(globalVariable.getType()), false, linkage, initializer, globalVariable.getName());
     }
+
+    //    auto it = globalScope().valuesByDecl.try_emplace(&decl, value);
+    //    ASSERT(it.second);
+    //    return value;
 }

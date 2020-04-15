@@ -62,7 +62,7 @@ add_definitions(-DCLANG_BUILTIN_INCLUDE_PATH="${CLANG_CMAKE_DIR}/../../clang/${L
 
 enable_testing()
 
-file(GLOB DELTA_SOURCES src/ast/*.h src/ast/*.cpp src/driver/*.h src/driver/*.cpp src/irgen/*.h src/irgen/*.cpp src/llvm/*.h src/llvm/*.cpp
+file(GLOB DELTA_SOURCES src/ast/*.h src/ast/*.cpp src/driver/*.h src/driver/*.cpp src/ir/*.h src/ir/*.cpp src/llvm/*.h src/llvm/*.cpp
     src/package-manager/*.h src/package-manager/*.cpp src/parser/*.h src/parser/*.cpp src/sema/*.h src/sema/*.cpp src/support/*.h src/support/*.cpp)
 add_executable(delta ${DELTA_SOURCES})
 

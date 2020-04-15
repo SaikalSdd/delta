@@ -25,7 +25,8 @@
 #pragma warning(pop)
 #include "clang.h"
 #include "../ast/module.h"
-#include "../irgen/irgen.h"
+#include "../ir/irgen.h"
+#include "../llvm/llvm.h"
 #include "../package-manager/manifest.h"
 #include "../package-manager/package-manager.h"
 #include "../parser/parse.h"
@@ -218,12 +219,15 @@ static int buildExecutable(llvm::ArrayRef<std::string> files, const PackageManif
     if (typecheck) return 0;
 
     IRGenerator irGenerator;
-
     for (auto* module : Module::getAllImportedModules()) {
         irGenerator.codegenModule(*module);
     }
 
-    auto& mainModule = irGenerator.codegenModule(module);
+    LLVMGenerator llvmGenerator;
+    for (auto* module : Module::getAllImportedModules()) {
+        llvmGenerator.codegenModule(*module);
+    }
+    auto& mainModule = llvmGenerator.codegenModule(module);
 
     if (printIR) {
         mainModule.setModuleIdentifier("");
@@ -232,10 +236,10 @@ static int buildExecutable(llvm::ArrayRef<std::string> files, const PackageManif
         return 0;
     }
 
-    llvm::Module linkedModule("", irGenerator.getLLVMContext());
+    llvm::Module linkedModule("", llvmGenerator.getLLVMContext());
     llvm::Linker linker(linkedModule);
 
-    for (auto& module : irGenerator.getGeneratedModules()) {
+    for (auto& module : llvmGenerator.getGeneratedModules()) {
         bool error = linker.linkInModule(std::unique_ptr<llvm::Module>(module));
         if (error) ABORT("LLVM module linking failed");
     }
